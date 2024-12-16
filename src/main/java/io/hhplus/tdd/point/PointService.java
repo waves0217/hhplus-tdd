@@ -12,6 +12,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class PointService {
+    private static final long maxBalnce = 1_000_000;
 
     private final UserPointTable userPointTable;
     private final PointHistoryTable pointHistoryTable;
@@ -26,6 +27,9 @@ public class PointService {
 
     public UserPoint chargePoint(long id, long amount, long chargeDate) {
         UserPoint userPoint = userPointTable.selectById(id);
+        if(userPoint.point() + amount > maxBalnce) {
+            throw new IllegalArgumentException("최대 잔고를 초과할 수 없습니다.");
+        }
 
         UserPoint chargedUserPoint = userPointTable.insertOrUpdate(id, userPoint.point() + amount);
 
