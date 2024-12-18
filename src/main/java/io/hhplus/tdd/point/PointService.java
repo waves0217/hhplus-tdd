@@ -25,7 +25,7 @@ public class PointService {
         return pointHistoryTable.selectAllByUserId(id);
     }
 
-    public UserPoint chargePoint(long id, long amount, long chargeDate) {
+    public synchronized UserPoint chargePoint(long id, long amount, long chargeDate) {
         UserPoint userPoint = userPointTable.selectById(id);
         if(userPoint.point() + amount > maxBalnce) {
             throw new IllegalArgumentException("최대 잔고를 초과할 수 없습니다.");
@@ -38,7 +38,7 @@ public class PointService {
         return chargedUserPoint;
     }
 
-    public UserPoint usePoint(long id, long amount, long useDate) {
+    public synchronized UserPoint usePoint(long id, long amount, long useDate) {
         UserPoint userPoint = userPointTable.selectById(id);
 
         if(userPoint.point() < amount){
