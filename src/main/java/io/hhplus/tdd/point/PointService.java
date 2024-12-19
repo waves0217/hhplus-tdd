@@ -29,8 +29,8 @@ public class PointService {
     }
 
     public UserPoint chargePoint(long id, long amount, long chargeDate) {
-        lock.lock();
-        try {
+        /*lock.lock();
+        try {*/
         UserPoint userPoint = userPointTable.selectById(id);
         if(userPoint.point() + amount > maxBalnce) {
             throw new IllegalArgumentException("최대 잔고를 초과할 수 없습니다.");
@@ -41,15 +41,15 @@ public class PointService {
         pointHistoryTable.insert(id,amount,TransactionType.CHARGE,chargeDate);
             System.out.println("충전 후 포인트: " + chargedUserPoint.point());
         return chargedUserPoint;
-        } finally {
+        /*} finally {
             lock.unlock(); // 락 해제
-        }
+        }*/
     }
 
-    public UserPoint usePoint(long id, long amount, long useDate) {
-        lock.lock();
+    public  UserPoint usePoint(long id, long amount, long useDate) {
+        /*lock.lock();
         try {
-        UserPoint userPoint = userPointTable.selectById(id);
+        */UserPoint userPoint = userPointTable.selectById(id);
 
         if(userPoint.point() < amount){
             throw new IllegalArgumentException("포인트가 부족합니다.");
@@ -59,9 +59,9 @@ public class PointService {
         pointHistoryTable.insert(id,amount,TransactionType.USE,useDate);
             System.out.println("사용 후 포인트: " + useUserPoint.point());
         return useUserPoint;
-        } finally {
+        /*} finally {
             lock.unlock(); // 락 해제
-        }
+        }*/
     }
 
 }

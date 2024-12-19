@@ -35,6 +35,7 @@ public class SynchronizedTest {
         for (int i = 0; i < threadCount; i++) {
             int threadNum = i;
             executorService.submit(() -> {
+                long requestTime = System.currentTimeMillis();
                 try {
                     if (threadNum % 2 == 0) {
                         pointService.chargePoint(userId, 10L, System.currentTimeMillis());
@@ -44,6 +45,8 @@ public class SynchronizedTest {
                         System.out.println("스레드 " + threadNum + ": 10 포인트 사용");
                     }
                 } finally {
+                    long finishTime = System.currentTimeMillis(); // 요청 처리 완료 시간
+                    System.out.println("요청 " + threadNum + ": 처리 시간 = " + (finishTime - requestTime) + "ms");
                     latch.countDown();
                 }
             });
@@ -61,5 +64,41 @@ public class SynchronizedTest {
         assertEquals(1_000L, userPoint.point());
     }
 
+    @Test
+    @DisplayName("동기화 없이 동시 요청 시 데이터 불일치 확인")
+    void testConcurrencyWithoutSynchronization() throws InterruptedException {
+        //given
+        long userId = 1L;
+        PointService pointService = new PointService(new UserPointTable(), new PointHistoryTable());
+        pointService.chargePoint(userId, 1_000L, System.currentTimeMillis());
+        System.out.println("초기 포인트: " + pointService.getId(userId).point());
+
+        int threadCount = 100;
+        ExecutorService executorService = Executors.newFixedThreadPool(10);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+
+        //when
+        for (int i = 0; i < threadCount; i++) {
+            int finalI = i;
+            executorService.submit(() -> {
+                try {
+                    if (finalI % 2 == 0) {
+                        pointService.chargePoint(userId, 10L, System.currentTimeMillis());
+                    } else {
+                        pointService.usePoint(userId, 10L, System.currentTimeMillis());
+                    }
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+        executorService.shutdown();
+
+        //then
+        UserPoint userPoint = pointService.getId(userId);
+        System.out.println("최종 포인트: " + userPoint.point());
+    }
 
 }
