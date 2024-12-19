@@ -242,5 +242,148 @@ public class ConcurrencyTest {
         }
     }
 
+    @Test
+    @DisplayName("동시 요청이 많아질 때 병목 현상 확인")
+    void testHighConcurrency() throws InterruptedException {
+        //given
+        int userCount = 10;             // 사용자 수
+        int threadCountPerUser = 500;    // 사용자 동시 요청 수
+        long initialPoint = 1_000L;     // 초기 포인트
+        long chargeAmount = 10L;        // 충전 금액
+        long useAmount = 10L;           // 사용 금액
+
+        PointService pointService = new PointService(new UserPointTable(), new PointHistoryTable());
+
+        //각 사용자 초기 포인트 설정
+        for (int userId = 1; userId <= userCount; userId++) {
+            pointService.chargePoint(userId, initialPoint, System.currentTimeMillis());
+        }
+
+        ExecutorService executorService = Executors.newFixedThreadPool(50); // 최대 50개의 스레드 실행
+        CountDownLatch latch = new CountDownLatch(userCount * threadCountPerUser);
+
+        long[] requestStartTimes = new long[userCount * threadCountPerUser];
+        long[] requestEndTimes = new long[userCount * threadCountPerUser];
+
+        //when
+        int globalRequestIndex = 0;
+        for (int userId = 1; userId <= userCount; userId++) {
+            for (int i = 0; i < threadCountPerUser; i++) {
+                int threadNum = i;
+                int currentUserId = userId;
+                int requestIndex = globalRequestIndex++;
+
+                executorService.submit(() -> {
+                    long requestStart = System.currentTimeMillis();
+                    requestStartTimes[requestIndex] = requestStart;
+                    try {
+                        if (threadNum % 2 == 0) {
+                            pointService.chargePoint(currentUserId, chargeAmount, System.currentTimeMillis());
+                        } else {
+                            pointService.usePoint(currentUserId, useAmount, System.currentTimeMillis());
+                        }
+                    } finally {
+                        long requestEnd = System.currentTimeMillis();
+                        requestEndTimes[requestIndex] = requestEnd;
+                        latch.countDown();
+                    }
+                });
+            }
+        }
+
+        //모든 작업이 끝날 때까지 대기
+        latch.await();
+        executorService.shutdown();
+
+        //then
+        for (int userId = 1; userId <= userCount; userId++) {
+            UserPoint userPoint = pointService.getId(userId);
+            System.out.println("사용자 " + userId + " 최종 포인트: " + userPoint.point());
+            assertEquals(initialPoint, userPoint.point());
+        }
+
+        //요청 시간 홧인
+        long totalTime = 0;
+        for (int i = 0; i < requestStartTimes.length; i++) {
+            long duration = requestEndTimes[i] - requestStartTimes[i];
+            totalTime += duration;
+            System.out.println("요청 " + i + ": 처리 시간 = " + duration + "ms");
+        }
+
+        long averageTime = totalTime / requestStartTimes.length;
+        System.out.println("평균 처리 시간: " + averageTime + "ms");
+    }
+
+    @Test
+    @DisplayName("공정 모드 활성화 후 병목 현상 테스트")
+    void testFairModeConcurrency() throws InterruptedException {
+        //given
+        int userCount = 10;             // 사용자 수
+        int threadCountPerUser = 50;    // 사용자 동시 요청 수
+        long initialPoint = 1_000L;     // 초기 포인트
+        long chargeAmount = 10L;        // 충전 금액
+        long useAmount = 10L;           // 사용 금액
+
+        PointService pointService = new PointService(new UserPointTable(), new PointHistoryTable());
+
+        //각 사용자 초기 포인트 설정
+        for (int userId = 1; userId <= userCount; userId++) {
+            pointService.chargePoint(userId, initialPoint, System.currentTimeMillis());
+        }
+
+        ExecutorService executorService = Executors.newFixedThreadPool(50); // 최대 50개의 스레드 실행
+        CountDownLatch latch = new CountDownLatch(userCount * threadCountPerUser);
+
+        long[] requestStartTimes = new long[userCount * threadCountPerUser];
+        long[] requestEndTimes = new long[userCount * threadCountPerUser];
+
+        //when
+        int globalRequestIndex = 0;
+        for (int userId = 1; userId <= userCount; userId++) {
+            for (int i = 0; i < threadCountPerUser; i++) {
+                int threadNum = i;
+                int currentUserId = userId;
+                int requestIndex = globalRequestIndex++;
+
+                executorService.submit(() -> {
+                    long requestStart = System.currentTimeMillis();
+                    requestStartTimes[requestIndex] = requestStart;
+                    try {
+                        if (threadNum % 2 == 0) {
+                            pointService.chargePoint(currentUserId, chargeAmount, System.currentTimeMillis());
+                        } else {
+                            pointService.usePoint(currentUserId, useAmount, System.currentTimeMillis());
+                        }
+                    } finally {
+                        long requestEnd = System.currentTimeMillis();
+                        requestEndTimes[requestIndex] = requestEnd;
+                        latch.countDown();
+                    }
+                });
+            }
+        }
+
+        //모든 작업이 끝날 때까지 대기
+        latch.await();
+        executorService.shutdown();
+
+        //then
+        for (int userId = 1; userId <= userCount; userId++) {
+            UserPoint userPoint = pointService.getId(userId);
+            System.out.println("사용자 " + userId + " 최종 포인트: " + userPoint.point());
+            assertEquals(initialPoint, userPoint.point());
+        }
+
+        //요청 시간 분석
+        long totalTime = 0;
+        for (int i = 0; i < requestStartTimes.length; i++) {
+            long duration = requestEndTimes[i] - requestStartTimes[i];
+            totalTime += duration;
+            System.out.println("요청 " + i + ": 처리 시간 = " + duration + "ms");
+        }
+
+        long averageTime = totalTime / requestStartTimes.length;
+        System.out.println("평균 처리 시간: " + averageTime + "ms");
+    }
 
 }

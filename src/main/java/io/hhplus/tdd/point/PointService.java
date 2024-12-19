@@ -24,7 +24,7 @@ public class PointService {
     private final ConcurrentHashMap<Long,Lock> userLocks = new ConcurrentHashMap<>();
 
     private Lock getLockForUser(long userId) {
-        userLocks.putIfAbsent(userId,new ReentrantLock());  //lock이 없으면 생성
+        userLocks.putIfAbsent(userId,new ReentrantLock(true));  //lock이 없으면 생성
         return userLocks.get(userId);
     }
 
