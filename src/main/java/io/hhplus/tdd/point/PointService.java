@@ -8,6 +8,7 @@ import org.apache.catalina.User;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -18,7 +19,14 @@ public class PointService {
 
     private final UserPointTable userPointTable;
     private final PointHistoryTable pointHistoryTable;
-    private final Lock lock = new ReentrantLock();
+    /*private final Lock lock = new ReentrantLock();*/
+    //사용자 ID별 lock관리
+    private final ConcurrentHashMap<Long,Lock> userLocks = new ConcurrentHashMap<>();
+
+    private Lock getLockForUser(long userId) {
+        userLocks.putIfAbsent(userId,new ReentrantLock());  //lock이 없으면 생성
+        return userLocks.get(userId);
+    }
 
     public UserPoint getId(long id) {
         return userPointTable.selectById(id);
@@ -29,8 +37,9 @@ public class PointService {
     }
 
     public UserPoint chargePoint(long id, long amount, long chargeDate) {
-        /*lock.lock();
-        try {*/
+        Lock lock = getLockForUser(id);
+        lock.lock();
+        try {
         UserPoint userPoint = userPointTable.selectById(id);
         if(userPoint.point() + amount > maxBalnce) {
             throw new IllegalArgumentException("최대 잔고를 초과할 수 없습니다.");
@@ -39,17 +48,18 @@ public class PointService {
         UserPoint chargedUserPoint = userPointTable.insertOrUpdate(id, userPoint.point() + amount);
 
         pointHistoryTable.insert(id,amount,TransactionType.CHARGE,chargeDate);
-            System.out.println("충전 후 포인트: " + chargedUserPoint.point());
+
         return chargedUserPoint;
-        /*} finally {
+        } finally {
             lock.unlock(); // 락 해제
-        }*/
+        }
     }
 
-    public  UserPoint usePoint(long id, long amount, long useDate) {
-        /*lock.lock();
+    public UserPoint usePoint(long id, long amount, long useDate) {
+        Lock lock = getLockForUser(id);
+        lock.lock();
         try {
-        */UserPoint userPoint = userPointTable.selectById(id);
+        UserPoint userPoint = userPointTable.selectById(id);
 
         if(userPoint.point() < amount){
             throw new IllegalArgumentException("포인트가 부족합니다.");
@@ -57,11 +67,11 @@ public class PointService {
 
         UserPoint useUserPoint = userPointTable.insertOrUpdate(id, userPoint.point() - amount);
         pointHistoryTable.insert(id,amount,TransactionType.USE,useDate);
-            System.out.println("사용 후 포인트: " + useUserPoint.point());
+
         return useUserPoint;
-        /*} finally {
+        } finally {
             lock.unlock(); // 락 해제
-        }*/
+        }
     }
 
 }
